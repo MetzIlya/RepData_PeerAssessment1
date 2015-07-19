@@ -1,25 +1,103 @@
 ---
-title: "Reproducible Research: Peer Assessment 1"
-output: 
-  html_document:
-    keep_md: true
+title: "Activity data report"
+author: "Ilya Metz"
+date: "Sunday, July 19, 2015"
+output: html_document
 ---
 
+Loading and preprocessing the data
+==================================
+```{r}
+library(dplyr)
 
-## Loading and preprocessing the data
+em_url <- "https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2Factivity.zip"
+em_zip <- "./ActivityData.zip"
+em_unzip <- "./data/activity.csv"
+if(!file.exists(em_zip)){
+  print(paste("Downloading Activity Data zip file into ",em_zip ,  " ..."))
+  download.file(em_url,destfile=em_zip, mode="wb")
+}else{
+  print(paste(em_zip, " file already downloaded"))
+}
 
+if(!file.exists(em_unzip)){
+  print(paste("Unzip file ",  em_unzip))
+  unzip(em_zip, exdir="./data")   
+}else{
+  print(paste(em_unzip, " file already unziped"))
+}
 
+act_data <- read.csv("./data/activity.csv");
+act_tbl <- tbl_df(act_data)
+```
 
-## What is mean total number of steps taken per day?
+Total number of steps taken per day 
+===================================
 
+Historgram for total number of steps per day: 
+```{r}
+act_hist <- act_tbl %>% group_by(date) %>% summarise(steps=sum(steps, na.rm = TRUE))
+                                                   
+hist(act_hist$steps, main="Histogram of steps per day", xlab = "Steps")
+```
 
+Mean and median are quite close to each other: 
+```{r}
+mean(act_hist$steps)
 
-## What is the average daily activity pattern?
+median(act_hist$steps)
+```
 
+What is the average daily activity pattern
+==========================================
+Graph for day with 5 minutes invterval steps:
+```{r}
+plot(act_tbl %>% na.omit() %>% group_by(interval) %>% 
+       summarise(steps=mean(steps)), type="l")
 
+```
 
-## Imputing missing values
+We can better see peak on the following graphs:
+```{r}
+plot(act_tbl %>% na.omit() %>% group_by(interval) %>% filter(interval>700, interval<1000) %>% summarise(steps=mean(steps)), type="l")
 
+plot(act_tbl %>% na.omit() %>% group_by(interval) %>% filter(interval>840, interval<860) %>% summarise(steps=mean(steps)), type="l")
+```
+We can see maximum at 850 5-minutes interval of day activity.
 
+Replacing missing values with mean value
+========================================
+Count na and interval with values
+```{r}
+# How many missing values do we have?  
+act_tbl %>% filter(is.na(steps)) %>% count()
 
-## Are there differences in activity patterns between weekdays and weekends?
+# How many intervals wtih values do we have? 
+act_tbl %>% filter(!is.na(steps)) %>% count()
+```
+
+Replacing NAs with mean, build histogram
+```{r}
+# Creating new dataset
+act_tbl_not_null <- act_tbl
+
+# Replacing missed value with mean value
+act_tbl_not_null[is.na(act_tbl$steps),]$steps <- mean((act_tbl %>% filter(!is.na(steps)))$steps)
+
+# Create histogram for this dataset
+act_hist_not_null <- act_tbl_not_null %>% group_by(date) %>% summarise(steps=sum(steps, na.rm = TRUE))
+hist(act_hist_not_null$steps, main="Histogram of steps per day", xlab = "Steps")
+```
+
+Differences in activity patterns between weekdays and weekends
+==============================================================
+```{r}
+act_tbl_not_null <- mutate(act_tbl_not_null, day = 'weekend') 
+act_tbl_not_null$day <- ifelse(as.POSIXlt(act_tbl_not_null$date)$wday %in% c(0,6), 'weekend', 'weekday')
+act_tbl_not_null$day <- as.factor(act_tbl_not_null$day)
+
+plot(act_tbl_not_null %>% group_by(interval) %>% filter(day=='weekday') %>% summarise(steps=mean(steps, na.rm = TRUE)), type="l", main = "Weekday steps")
+
+plot(act_tbl_not_null %>% group_by(interval) %>% filter(day=='weekend') %>% summarise(steps=mean(steps, na.rm = TRUE)), type="l", main = "Weekend steps")
+
+```
